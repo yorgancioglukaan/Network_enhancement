@@ -204,10 +204,10 @@ if __name__ == '__main__':
     #print(f'original: test_acc: {test_acc}, best_val_acc: {best_val_acc}, gamma: {Gamma_0}')
 
 
-    #perturb_probs = [0.1, 0.2, 0.4, 0.8]
-    perturb_probs = [0]
-    #enhance_ratio = [1.1, 1.2, 1.4, 1.8]
-    enhance_ratio = [1.1, 1.5, 1.9]
+    perturb_probs = [0.1, 0.2, 0.4, 0.8]
+    #perturb_probs = [0]
+    enhance_ratio = [1.1, 1.2, 1.4, 1.8]
+    #enhance_ratio = [1.1, 1.5, 1.9]
  
 
     for p in perturb_probs:
