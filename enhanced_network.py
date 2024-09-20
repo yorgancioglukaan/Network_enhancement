@@ -8,17 +8,24 @@ import numpy as np
 
 
 
-def calculate_posteriors(data):
+def calculate_posteriors(data,k):
     set_of_classes = torch.unique(data.y) #TODO Convert to multilabel 
     A = to_dense_adj(edge_index=data.edge_index, max_num_nodes=data.num_nodes)
-    #experimental
-    A_2 = torch.matmul(A,A)
-    #A_2 = torch.gt(A,0)
-    A_3 = torch.matmul(A,A_2)
-    #A_3 = torch.gt(A_3,0)
-    A = A + A_2 + A_3
-    A = torch.gt(A,0)
-    #end of experimental
+
+    if k == "double":
+        A_2 = torch.matmul(A,A)
+        #A_2 = torch.gt(A,0)
+        A = A + A_2
+        A = torch.gt(A,0)
+    elif k == "triple":
+        #experimental
+        A_2 = torch.matmul(A,A)
+        #A_2 = torch.gt(A,0)
+        A_3 = torch.matmul(A,A_2)
+        #A_3 = torch.gt(A_3,0)
+        A = A + A_2 + A_3
+        A = torch.gt(A,0)
+        #end of experimental
 
     posteriors = torch.zeros(data.num_nodes, len(set_of_classes)) #intialize
     
@@ -53,7 +60,7 @@ def _unravel(index, shape): # takes in flat index and converts to n-dim tensor i
 
 
 
-def enhance_adjacency(data, delta):
+def enhance_adjacency(data, delta,k):
     #TODO: use only training data
     A = to_dense_adj(edge_index=data.edge_index, max_num_nodes=data.num_nodes).squeeze()
     e = torch.count_nonzero(A)/2 #assumes undirected
@@ -65,7 +72,7 @@ def enhance_adjacency(data, delta):
         raise ValueError("invalid delta")
     Q = torch.zeros(n,n)
     set_of_classes = torch.unique(data.y)
-    posteriors = calculate_posteriors(data)
+    posteriors = calculate_posteriors(data,k)
     for c in set_of_classes:
         post = torch.index_select(posteriors,1,c)
         Q_c = torch.matmul(post, post.t())

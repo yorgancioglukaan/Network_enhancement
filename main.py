@@ -1,6 +1,6 @@
 import argparse
 from models import GCN_Net, ChebNet, APPNP_Net
-from utils import load_planetoid_data, perturb_edges, calc_density, load_actor, random_planetoid_splits, load_squirrel
+from utils import load_planetoid_data, perturb_edges, calc_density, load_actor, random_planetoid_splits, load_squirrel, load_chameleon
 from torch_geometric.utils import dropout_edge, dense_to_sparse
 from enhanced_network import enhance_adjacency
 import math
@@ -74,8 +74,14 @@ def run_experiment(args, dataset, data, Net):
     val_loss_history = []
     val_acc_history = []
 
+    if args.mode == 'verbose':
+        print('DIAG: starting training')
+
     for epoch in range(args.epochs):
         train(model, optimizer, data, args.dprate)
+
+        if (args.mode == 'verbose') & (epoch % 50 == 0):
+            print(f'DIAG: starting epoch {epoch}')
 
         [train_acc, val_acc, tmp_test_acc], preds, [
             train_loss, val_loss, tmp_test_loss] = test(model, data)
@@ -103,15 +109,28 @@ def perturbation_experiment(args, dataset, data, Net, p, enh_ratios):
     perturbed_data.edge_index = edge_index
     new_denisty = calc_density(data=perturbed_data)
 
+    if args.mode == 'verbose':
+        print('DIAG: starting perturb tests')
+        print(f'perturbed density: {new_denisty}')
+
     p_test_acc, p_best_val_acc, p_Gamma_0 = run_experiment(args=args, dataset=dataset, data=perturbed_data, Net=Net)
+
+    if args.mode == 'verbose':
+        print('DIAG: baseline ran')
 
     e_test_results = []
     e_val_results = []
 
     for er in enh_ratios:
-        (edge_index, edge_attr) = dense_to_sparse(enhance_adjacency(perturbed_data,new_denisty*er))
+        if args.mode == 'verbose':
+            print('DIAG: calculating enhanced matrix')
+        (edge_index, edge_attr) = dense_to_sparse(enhance_adjacency(perturbed_data,new_denisty*er,args.k))
         enhanced_data = data
         enhanced_data.edge_index = edge_index
+        if args.mode == 'verbose':
+            print('DIAG: enh matrix calculated. starting experiment')
+            enhanced_density = calc_density(data=enhanced_data)
+            print(f'enhanced density: {enhanced_density}')
         e_test_acc, e_best_val_acc, e_Gamma_0 = run_experiment(args=args, dataset=dataset, data=enhanced_data, Net=Net)
         e_test_results.append(e_test_acc)
         e_val_results.append(e_best_val_acc)
@@ -126,7 +145,7 @@ if __name__ == '__main__':
     # 0) ARGUMENTS MANAGEMENT
     parser = argparse.ArgumentParser()
     parser.add_argument('--method', type=str, choices=['GCN', 'ChebNet', 'APPNP'], default='GCN')
-    parser.add_argument('--dataset', type=str, choices=['cora', 'citeseer', 'pubmed', 'actor', 'squirrel'], default='cora')
+    parser.add_argument('--dataset', type=str, choices=['cora', 'citeseer', 'pubmed', 'actor', 'squirrel','chameleon'], default='cora')
     parser.add_argument('--hidden', type=int, default=64)
     parser.add_argument('--dropout', type=float, default=0.5)
     parser.add_argument('--epochs', type=int, default=1000)
@@ -135,9 +154,13 @@ if __name__ == '__main__':
     parser.add_argument('--early_stopping', type=int, default=200)
     parser.add_argument('--alpha', type=float, default=0.1)
     parser.add_argument('--dprate', type=float, default=0.5)
-
+    parser.add_argument('--k', type=str, choices=['single','double','triple'], default='double')
+    parser.add_argument('--K', type=int, default=10)
+    parser.add_argument('--mode', type=str, choices=['verbose','normal'], default='normal')
 
     args = parser.parse_args()
+    print(f'data: {args.dataset} | method: {args.method}')
+
 
     # 1.1) SETTING UP DATASET
     dataset_name = args.dataset
@@ -149,6 +172,8 @@ if __name__ == '__main__':
         dataset, data = load_actor()
     elif dataset_name == 'squirrel':
         dataset, data = load_squirrel()
+    elif dataset_name == 'chameleon':
+        dataset, data = load_chameleon()
     else: 
         # do sth else
         print("error while loading dataset")
@@ -174,13 +199,16 @@ if __name__ == '__main__':
         Net = GCN_Net
 
     
-    test_acc, best_val_acc, Gamma_0 = run_experiment(args=args, dataset=dataset, data=data, Net=Net)
+    #test_acc, best_val_acc, Gamma_0 = run_experiment(args=args, dataset=dataset, data=data, Net=Net)
 
-    print(f'original: test_acc: {test_acc}, best_val_acc: {best_val_acc}, gamma: {Gamma_0}')
+    #print(f'original: test_acc: {test_acc}, best_val_acc: {best_val_acc}, gamma: {Gamma_0}')
 
 
-    perturb_probs = [0.1, 0.2, 0.4, 0.8]
-    enhance_ratio = [1.1, 1.2, 1.4, 1.8]
+    #perturb_probs = [0.1, 0.2, 0.4, 0.8]
+    perturb_probs = [0]
+    #enhance_ratio = [1.1, 1.2, 1.4, 1.8]
+    enhance_ratio = [1.1, 1.5, 1.9]
+ 
 
     for p in perturb_probs:
         p_test_acc, p_best_val_acc, e_test_results, e_val_results = perturbation_experiment(args=args, dataset=dataset, data=data, Net=Net, p=p, enh_ratios=enhance_ratio)
